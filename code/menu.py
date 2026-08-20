@@ -1,48 +1,37 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-import os
 import pygame
 from pygame.font import Font
 from pygame import Surface, Rect
-from code.Const import WIN_WIDTH, WIN_HEIGHT, COLOR_ORANGE
+from code.Const import WIN_WIDTH, WIN_HEIGHT, COLOR_ORANGE, COLOR_WHITE, COLOR_YELLOW, MENU_OPTION
 
 
 class Menu:
 
     def __init__(self, window):
         self.window = window
-
-        # Descobre o caminho seguro até a pasta 'asset'
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-        # Mude 'orig.png' para 'MenuBg.png' ou 'Menu.png' se você tiver renomeado a imagem
-        image_path = os.path.join(base_dir, 'asset', 'orig.png')
-
-        surf_original = pygame.image.load(image_path)
-        self.surf = pygame.transform.scale(surf_original, (WIN_WIDTH, WIN_HEIGHT))
+        self.surf = pygame.image.load('./asset/MenuBg.png')
         self.rect = self.surf.get_rect(left=0, top=0)
 
     def run(self):
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        music_path = os.path.join(base_dir, 'asset', 'Menu.mp3')
-
-        if os.path.exists(music_path):
-            pygame.mixer_music.load(music_path)
-            pygame.mixer_music.play(-1)
+        menu_option = 0
+        pygame.mixer_music.load('./asset/Menu.mp3')
+        pygame.mixer_music.play(-1)
 
         while True:
+            # DRAW IMAGES
             self.window.blit(source=self.surf, dest=self.rect)
 
             # Título do Jogo
             self.menu_text(50, "Mountain", COLOR_ORANGE, (WIN_WIDTH / 2, 70))
             self.menu_text(50, "Shooter", COLOR_ORANGE, (WIN_WIDTH / 2, 120))
 
-            # Opções do Menu
-            self.menu_text(20, "NEW GAME 1P", (255, 255, 255), (WIN_WIDTH / 2, 180))
-            self.menu_text(20, "NEW GAME 2P - COOPERATIVE", (255, 255, 255), (WIN_WIDTH / 2, 210))
-            self.menu_text(20, "NEW GAME 2P - COMPETITIVE", (255, 255, 255), (WIN_WIDTH / 2, 240))
-            self.menu_text(20, "SCORE", (255, 255, 255), (WIN_WIDTH / 2, 270))
-            self.menu_text(20, "EXIT", (255, 255, 255), (WIN_WIDTH / 2, 300))
+            # Renderização dinâmica das opções do Menu
+            for i in range(len(MENU_OPTION)):
+                if i == menu_option:
+                    self.menu_text(20, MENU_OPTION[i], COLOR_YELLOW, (WIN_WIDTH / 2, 200 + 25 * i))
+                else:
+                    self.menu_text(20, MENU_OPTION[i], COLOR_WHITE, (WIN_WIDTH / 2, 200 + 25 * i))
 
             pygame.display.flip()
 
@@ -51,6 +40,22 @@ class Menu:
                 if event.type == pygame.QUIT:
                     pygame.quit()  # Close Window
                     quit()  # end pygame
+
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_DOWN:  # Seta para baixo
+                        if menu_option < len(MENU_OPTION) - 1:
+                            menu_option += 1
+                        else:
+                            menu_option = 0
+
+                    if event.key == pygame.K_UP:  # Seta para cima
+                        if menu_option > 0:
+                            menu_option -= 1
+                        else:
+                            menu_option = len(MENU_OPTION) - 1
+
+                    if event.key == pygame.K_RETURN:  # Tecla Enter
+                        return MENU_OPTION[menu_option]
 
     def menu_text(self, text_size: int, text: str, text_color: tuple, text_center_pos: tuple):
         text_font: Font = pygame.font.SysFont(name="Lucida Sans Typewriter", size=text_size)

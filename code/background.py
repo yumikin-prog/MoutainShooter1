@@ -1,14 +1,17 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-
-from Enemy import Enemy
-from Entity import Entity
-from Entity import Entity
+from code.Const import WIN_WIDTH, ENTITY_SPEED
+from code.entity import Entity
 
 
-class Background(Enemy, Entity, Entity):
-    def __init__(self):
-        self.Attribute1 = None
+class Background(Entity):
+    def __init__(self, name: str, position: tuple):
+        super().__init__(name, position)
+        # Define a velocidade com base no nome do arquivo
+        self.speed = ENTITY_SPEED.get(name, 1)
 
-    def move(self, ):
-        pass
+    def move(self):
+        self.rect.x -= self.speed
+        # Quando sai totalmente da tela à esquerda, volta para o lado direito
+        if self.rect.right <= 0:
+            self.rect.x = WIN_WIDTH

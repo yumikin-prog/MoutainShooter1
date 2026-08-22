@@ -4,152 +4,139 @@ import random
 import sys
 import pygame
 
-from code.Const import COLOR_WHITE, WIN_HEIGHT, WIN_WIDTH, MENU_OPTION, EVENT_ENEMY
-from code.enemy import Enemy
-from code.entity import Entity
+from code.Const import COLOR_WHITE, EVENT_ENEMY, WIN_WIDTH, WIN_HEIGHT
 from code.entityFactory import EntityFactory
-from code.eventManager import EventManager, ScoreHUD
+from code.entitymediator import EntityMediator
 from code.player import Player
-from code.playerShot import PlayerShot
 
 
 class Level:
-
-    def __init__(self, window, name, game_mode):
+    def __init__(self, window: pygame.Surface, name: str, game_mode: str, spawn_rate: int = 800, timeout: int = 20000, p1_health: int = 5, p2_health: int = 5):
         self.window = window
+        self.virtual_surface = pygame.Surface((WIN_WIDTH, WIN_HEIGHT))
         self.name = name
         self.game_mode = game_mode
-        self.entity_list: list[Entity] = []
+        self.spawn_rate = spawn_rate
+        self.timeout = timeout
+        self.entity_list = []
 
-        self.entity_list.extend(EntityFactory.get_entity('Level1Bg'))
-        self.entity_list.append(EntityFactory.get_entity('Player1'))
+        if '1' in self.name:
+            self.enemy_pool = ["Enemy1", "Enemy2"]
+        elif '2' in self.name:
+            self.enemy_pool = ["Enemy1", "Enemy2"]
+        else:
+            self.enemy_pool = ["Enemy1", "Enemy2", "Enemy3"]
 
-        if self.game_mode in [MENU_OPTION[1], MENU_OPTION[2]]:
-            self.entity_list.append(EntityFactory.get_entity('Player2'))
+        bg_entities = EntityFactory.get_entity(f"{self.name}Bg")
+        if bg_entities:
+            if isinstance(bg_entities, list):
+                self.entity_list.extend(bg_entities)
+            else:
+                self.entity_list.append(bg_entities)
 
-        # Cria inimigos iniciais
-        self.entity_list.append(EntityFactory.get_entity('Enemy1'))
-        self.entity_list.append(EntityFactory.get_entity('Enemy2'))
+        if p1_health > 0:
+            p1 = EntityFactory.get_entity("Player1")
+            self.player1 = p1 if isinstance(p1, Player) else None
+            if self.player1:
+                self.player1.health = p1_health
+                self.entity_list.append(self.player1)
+        else:
+            self.player1 = None
 
-        # Timer nativo do Pygame para criar novos inimigos a cada 2000ms (2s)
-        pygame.time.set_timer(EVENT_ENEMY, 2000)
+        if self.game_mode in ["NEW GAME 2P - COOPERATIVE", "NEW GAME 2P - COMPETITIVE"] and p2_health > 0:
+            p2 = EntityFactory.get_entity("Player2")
+            self.player2 = p2 if isinstance(p2, Player) else None
+            if self.player2:
+                self.player2.health = p2_health
+                self.entity_list.append(self.player2)
+        else:
+            self.player2 = None
 
-        self.timeout = 20000
+        pygame.time.set_timer(EVENT_ENEMY, self.spawn_rate)
+        self.font = pygame.font.SysFont("Lucida Console", 16)
+        self.clock = pygame.time.Clock()
 
-        self.event_manager = EventManager()
-        self.score_hud = ScoreHUD()
-        self.event_manager.inscrever(self.score_hud)
+    def run(self, *args, **kwargs):
+        if len(args) > 0 and isinstance(args[0], pygame.Surface):
+            self.window = args[0]
 
-    def checar_interacoes_mediator(self):
-        # 1. Tiro disparado da ponta da nave
-        for ent in self.entity_list:
-            if isinstance(ent, Player) and ent.shoot():
-                shot_pos = (ent.rect.right, ent.rect.centery)
-                self.entity_list.append(EntityFactory.get_entity(f'{ent.name}Shot', shot_pos))
+        try:
+            pygame.mixer.music.load(f"./asset/{self.name}.mp3")
+            pygame.mixer.music.play(-1)
+        except pygame.error:
+            pass
 
-        # 2. Colisão: Projétil -> Inimigo
-        for ent1 in list(self.entity_list):
-            if isinstance(ent1, PlayerShot):
-                for ent2 in list(self.entity_list):
-                    if isinstance(ent2, Enemy) and ent1.rect.colliderect(ent2.rect):
-                        if ent1 in self.entity_list:
-                            self.entity_list.remove(ent1)
-                        if ent2 in self.entity_list:
-                            self.entity_list.remove(ent2)
+        level_running = True
+        start_ticks = pygame.time.get_ticks()
 
-            # 3. Colisão: Player -> Inimigo
-            if isinstance(ent1, Player):
-                for ent2 in list(self.entity_list):
-                    if isinstance(ent2, Enemy) and ent1.rect.colliderect(ent2.rect):
-                        self.entity_list.remove(ent1)
-                        self.exibir_game_over()
-                        return False
+        while level_running:
+            self.clock.tick(60)
 
-            # 4. Remove tiro que saiu pela direita ou inimigo que saiu pela esquerda
-            if isinstance(ent1, Enemy) and ent1.rect.right < 0:
-                if ent1 in self.entity_list:
-                    self.entity_list.remove(ent1)
-            elif isinstance(ent1, PlayerShot) and ent1.rect.left > WIN_WIDTH:
-                if ent1 in self.entity_list:
-                    self.entity_list.remove(ent1)
-
-        # Se não houver nenhum jogador vivo na lista de entidades
-        players = [e for e in self.entity_list if isinstance(e, Player)]
-        if not players:
-            self.exibir_game_over()
-            return False
-
-        return True
-
-    def exibir_game_over(self):
-        """Desenha a mensagem 'VOCÊ PERDEU!' em branco por cima do fundo do jogo."""
-        # Redesenha todas as entidades restantes (fundo e elementos) para manter a tela visível
-        for ent in self.entity_list:
-            self.window.blit(source=ent.surf, dest=ent.rect)
-
-        # Configura o texto em BRANCO
-        font = pygame.font.SysFont("Lucida Sans Typewriter", 40, bold=True)
-        text_surf = font.render("VOCÊ PERDEU!", True, COLOR_WHITE)
-        text_rect = text_surf.get_rect(center=(WIN_WIDTH // 2, WIN_HEIGHT // 2))
-
-        self.window.blit(text_surf, text_rect)
-        pygame.display.flip()
-
-        # Interrompe a música ao perder
-        pygame.mixer.music.stop()
-
-        # Aguarda 2 segundos com o texto em branco sobre as árvores
-        pygame.time.delay(2000)
-
-    def run(self):
-        nome_limpo = self.name.lower()
-        extensoes = ['.mp3', '.MP3', '.wav', '.WAV']
-
-        musica_carregada = False
-        for ext in extensoes:
-            caminho = f'./asset/{nome_limpo}{ext}'
-            try:
-                pygame.mixer.music.load(caminho)
-                pygame.mixer.music.play(-1)
-                musica_carregada = True
-                break
-            except pygame.error:
-                continue
-
-        if not musica_carregada:
-            print(f"[AVISO] Música ./asset/{nome_limpo}.mp3 não encontrada.")
-
-        clock = pygame.time.Clock()
-
-        playing = True
-        while playing:
-            clock.tick(60)
-
-            for ent in self.entity_list:
-                self.window.blit(source=ent.surf, dest=ent.rect)
-                ent.move()
-
-            # Executa a checagem das interações e verifica se o jogo continua
-            playing = self.checar_interacoes_mediator()
-            if not playing:
-                break
+            elapsed_time = pygame.time.get_ticks() - start_ticks
+            time_left = max(0, (self.timeout - elapsed_time) // 1000)
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     sys.exit()
-                if event.type == EVENT_ENEMY:
-                    enemy_name = random.choice(['Enemy1', 'Enemy2'])
-                    self.entity_list.append(EntityFactory.get_entity(enemy_name))
 
-            self.level_text(14, f'{self.name} - Timeout: {self.timeout / 1000:.1f}s', COLOR_WHITE, (10, 5))
-            self.level_text(14, f'fps: {clock.get_fps():.0f}', COLOR_WHITE, (10, WIN_HEIGHT - 35))
-            self.level_text(14, f'entidades: {len(self.entity_list)}', COLOR_WHITE, (10, WIN_HEIGHT - 20))
+                if event.type == EVENT_ENEMY:
+                    enemy_type = random.choice(self.enemy_pool)
+                    new_enemy = EntityFactory.get_entity(enemy_type)
+                    if new_enemy:
+                        self.entity_list.append(new_enemy)
+
+            for ent in list(self.entity_list):
+                if isinstance(ent, Player):
+                    if ent.shoot():
+                        shot_pos = ent.get_shot_position()
+                        shot = EntityFactory.get_entity(f"{ent.name}Shot", shot_pos)
+                        if shot:
+                            self.entity_list.append(shot)
+
+            for ent in self.entity_list:
+                ent.move()
+
+            EntityMediator.verify_collision(self.entity_list)
+            EntityMediator.verify_health(self.entity_list)
+
+            # DESENHA NA SUPERFÍCIE VIRTUAL (576x324)
+            self.virtual_surface.fill((0, 0, 0))
+
+            for ent in self.entity_list:
+                self.virtual_surface.blit(ent.surf, ent.rect)
+
+            p1_h = self.player1.health if (self.player1 and self.player1.health > 0) else 0
+            p2_h = self.player2.health if (self.player2 and self.player2.health > 0) else 0
+
+            hud_text = f"{self.name} - Tempo: {time_left}s | P1: {p1_h}"
+            if self.game_mode in ["NEW GAME 2P - COOPERATIVE", "NEW GAME 2P - COMPETITIVE"]:
+                hud_text += f" | P2: {p2_h}"
+
+            txt_surf = self.font.render(hud_text, True, COLOR_WHITE)
+            self.virtual_surface.blit(txt_surf, (10, 10))
+
+            # ESCALA E DESENHA NA JANELA PRINCIPAL (Eles preenchem 100% da tela maximizada)
+            scaled_surf = pygame.transform.scale(self.virtual_surface, self.window.get_size())
+            self.window.blit(scaled_surf, (0, 0))
 
             pygame.display.flip()
 
-    def level_text(self, text_size: int, text: str, text_color: tuple, text_pos: tuple):
-        text_font = pygame.font.SysFont(name="Lucida Sans Typewriter", size=text_size)
-        text_surf = text_font.render(text, True, text_color).convert_alpha()
-        text_rect = text_surf.get_rect(left=text_pos[0], top=text_pos[1])
-        self.window.blit(source=text_surf, dest=text_rect)
+            p1_dead = self.player1 is None or self.player1.health <= 0
+            p2_dead = self.player2 is None or self.player2.health <= 0
+
+            if elapsed_time >= self.timeout:
+                pygame.mixer.music.stop()
+                return True, p1_h, p2_h
+
+            if self.game_mode in ["NEW GAME 2P - COOPERATIVE", "NEW GAME 2P - COMPETITIVE"]:
+                if p1_dead and p2_dead:
+                    pygame.mixer.music.stop()
+                    return False, 0, 0
+            else:
+                if p1_dead:
+                    pygame.mixer.music.stop()
+                    return False, 0, 0
+
+        pygame.mixer.music.stop()
+        return True, p1_h, p2_h

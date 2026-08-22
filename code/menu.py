@@ -1,59 +1,75 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+import sys
 import pygame
-from pygame import Surface, Rect
-from pygame.font import Font
-from code.Const import COLOR_ORANGE, COLOR_YELLOW, COLOR_WHITE, MENU_OPTION, WIN_WIDTH, WIN_HEIGHT
+from code.Const import WIN_WIDTH, WIN_HEIGHT, MENU_OPTION, COLOR_YELLOW, COLOR_WHITE, COLOR_ORANGE
 
 
 class Menu:
-    def __init__(self, window):
+    def __init__(self, window: pygame.Surface):
         self.window = window
-        self.surf = pygame.image.load('./asset/MenuBg.png')
-        self.rect = self.surf.get_rect(left=0, top=0)
+        self.menu_option = MENU_OPTION
+        self.selected_index = 0
 
-    def run(self):
-        menu_option = 0
-        pygame.mixer.music.load('./asset/Menu.mp3')
-        pygame.mixer.music.play(-1)
+        try:
+            self.bg = pygame.image.load('./asset/MenuBg.png').convert()
+            self.bg = pygame.transform.scale(self.bg, (WIN_WIDTH, WIN_HEIGHT))
+        except pygame.error:
+            self.bg = None
+
+    def run(self, main_screen=None):
+        clock = pygame.time.Clock()
+
+        for ext in ['.mp3', '.wav']:
+            try:
+                pygame.mixer.music.load(f'./asset/menu{ext}')
+                pygame.mixer.music.play(-1)
+                break
+            except pygame.error:
+                continue
 
         while True:
-            self.window.blit(source=self.surf, dest=self.rect)
+            clock.tick(60)
 
-            self.menu_text(50, "Mountain", COLOR_ORANGE, (WIN_WIDTH / 2, 70))
-            self.menu_text(50, "Shooter", COLOR_ORANGE, (WIN_WIDTH / 2, 120))
+            if self.bg:
+                self.window.blit(self.bg, (0, 0))
+            else:
+                self.window.fill((0, 0, 0))
 
-            for i in range(len(MENU_OPTION)):
-                if i == menu_option:
-                    self.menu_text(20, MENU_OPTION[i], COLOR_YELLOW, ((WIN_WIDTH / 2), 200 + 25 * i))
-                else:
-                    self.menu_text(20, MENU_OPTION[i], COLOR_WHITE, ((WIN_WIDTH / 2), 200 + 25 * i))
+            # Título do Jogo
+            self.draw_text_center(24, "MOUNTAIN SHOOTER", COLOR_ORANGE, (WIN_WIDTH // 2, 35))
 
-            pygame.display.flip()
+            # Opções de Seleção do Menu
+            for i, option in enumerate(self.menu_option):
+                color = COLOR_YELLOW if i == self.selected_index else COLOR_WHITE
+                self.draw_text_center(14, option, color, (WIN_WIDTH // 2, 85 + i * 22))
 
+            # Captura de Eventos de Navegação
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
-                    quit()
+                    sys.exit()
 
                 if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_DOWN:
-                        if menu_option < len(MENU_OPTION) - 1:
-                            menu_option += 1
-                        else:
-                            menu_option = 0
-
                     if event.key == pygame.K_UP:
-                        if menu_option > 0:
-                            menu_option -= 1
-                        else:
-                            menu_option = len(MENU_OPTION) - 1
+                        self.selected_index = (self.selected_index - 1) % len(self.menu_option)
+                    elif event.key == pygame.K_DOWN:
+                        self.selected_index = (self.selected_index + 1) % len(self.menu_option)
+                    elif event.key == pygame.K_RETURN:
+                        return self.menu_option[self.selected_index]
+                    elif event.key == pygame.K_ESCAPE:
+                        pygame.quit()
+                        sys.exit()
 
-                    if event.key == pygame.K_RETURN:
-                        return MENU_OPTION[menu_option]
+            if main_screen:
+                scaled = pygame.transform.scale(self.window, main_screen.get_size())
+                main_screen.blit(scaled, (0, 0))
+                pygame.display.flip()
+            else:
+                pygame.display.flip()
 
-    def menu_text(self, text_size: int, text: str, text_color: tuple, text_center_pos: tuple):
-        text_font: Font = pygame.font.SysFont(name="Lucida Sans Typewriter", size=text_size)
-        text_surf: Surface = text_font.render(text, True, text_color).convert_alpha()
-        text_rect: Rect = text_surf.get_rect(center=text_center_pos)
-        self.window.blit(source=text_surf, dest=text_rect)
+    def draw_text_center(self, text_size: int, text: str, text_color: tuple, text_pos: tuple):
+        text_font = pygame.font.SysFont(name="Lucida Sans Typewriter", size=text_size, bold=True)
+        text_surf = text_font.render(text, True, text_color).convert_alpha()
+        text_rect = text_surf.get_rect(center=text_pos)
+        self.window.blit(text_surf, text_rect)

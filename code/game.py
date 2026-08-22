@@ -108,7 +108,6 @@ class Game:
         waiting = True
         clock = pygame.time.Clock()
 
-        # Ranking estático demonstrativo/exemplo
         ranking = [
             "RANKING / TOP SCORES",
             "",
@@ -199,6 +198,57 @@ class Game:
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     waiting = False
 
+    def show_game_over_screen(self):
+        font_large = pygame.font.SysFont("Lucida Console", 36)
+        font_small = pygame.font.SysFont("Lucida Console", 20)
+
+        waiting = True
+        clock = pygame.time.Clock()
+
+        # Tenta carregar a imagem de fundo da capa/menu de forma segura
+        bg_surface = None
+        try:
+            menu_temp = Menu(self.window)
+            if hasattr(menu_temp, 'surf'):
+                bg_surface = menu_temp.surf
+        except Exception:
+            pass
+
+        while waiting:
+            clock.tick(30)
+
+            # Desenha a capa ao fundo se disponível, senão pinta de preto
+            if bg_surface:
+                self.window.blit(pygame.transform.scale(bg_surface, self.window.get_size()), (0, 0))
+            else:
+                self.window.fill((0, 0, 0))
+
+            virtual_surface = pygame.Surface((WIN_WIDTH, WIN_HEIGHT), pygame.SRCALPHA)
+
+            title_surf = font_large.render("GAME OVER", True, COLOR_YELLOW)
+            title_rect = title_surf.get_rect(center=(WIN_WIDTH // 2, WIN_HEIGHT // 3))
+            virtual_surface.blit(title_surf, title_rect)
+
+            press_surf = font_small.render("Pressione qualquer tecla para voltar ao Menu", True, COLOR_WHITE)
+            press_rect = press_surf.get_rect(center=(WIN_WIDTH // 2, WIN_HEIGHT // 2))
+            virtual_surface.blit(press_surf, press_rect)
+
+            scaled_surface = pygame.transform.scale(virtual_surface, self.window.get_size())
+            self.window.blit(scaled_surface, (0, 0))
+            pygame.display.flip()
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_F11:
+                        self.toggle_fullscreen()
+                    else:
+                        waiting = False
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    waiting = False
+
     def start_level_flow(self, game_mode: str):
         levels: List[Dict[str, Any]] = [
             {'name': 'Level1', 'spawn_rate': 800, 'timeout': 20000},
@@ -233,3 +283,5 @@ class Game:
 
         if game_cleared:
             self.show_win_screen(p1_health, p2_health, game_mode)
+        else:
+            self.show_game_over_screen()
